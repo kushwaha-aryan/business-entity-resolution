@@ -1,7 +1,7 @@
 # Business Entity Resolution
 
-Competition project for linking business records that appear in three
-independent sources (S1, S2, S3).
+Linking business records that appear in three independent sources (S1, S2, S3),
+so that records describing the same real-world business are grouped together.
 
 ## Goal
 
@@ -11,7 +11,7 @@ record we must decide which S2/S3 record, if any, is the same real-world
 business. The final submission contains the required match results together
 with the candidate pairs that were generated.
 
-## How it works (planned, one phase at a time)
+## Pipeline
 
 1. **Preprocessing** - load the three sources, normalise text, parse addresses
    and phone numbers, keep the original IDs untouched.
@@ -22,8 +22,8 @@ with the candidate pairs that were generated.
 4. **Matching** - score pairs and convert scores into final entity matches.
 5. **Pipeline** - run the steps in order and write the submission file.
 
-Only the folder layout exists so far. The modules are empty placeholders and
-no pipeline logic has been written yet.
+Matching relies only on the information contained in the provided S1, S2 and S3
+files. No external business databases, lookups or enrichment are used.
 
 ## Folder structure
 
@@ -38,14 +38,12 @@ business-entity-resolution/
 ├── notebooks/            # exploratory analysis
 ├── data/                 # competition datasets (git-ignored)
 ├── output/               # generated files and submission (git-ignored)
-├── requirements.txt      # dependencies, added per phase
+├── requirements.txt      # project dependencies
 ├── README.md
-├── AGENTS.md             # working rules for AI-assisted work
 └── .gitignore
 ```
 
-## Rules
+## Status
 
-See [AGENTS.md](AGENTS.md). The most important ones: work one phase at a
-time with approval, no external business lookup or enrichment of any kind, and
-keep original entity IDs plus the exact competition output format.
+Work in progress. The folder layout exists and the modules are placeholders;
+pipeline logic is implemented stage by stage.
