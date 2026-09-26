@@ -1,0 +1,2 @@
+# No third-party dependencies are needed for project setup.
+# Packages will be added one at a time, only when a phase actually requires one.

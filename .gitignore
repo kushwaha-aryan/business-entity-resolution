@@ -1,0 +1,53 @@
+# Datasets are provided by the competition and must never be committed.
+data/*
+!data/.gitkeep
+
+# Generated outputs (candidate pairs, submission files, reports).
+output/*
+!output/.gitkeep
+
+# Model artifacts and caches.
+*.pkl
+*.pickle
+*.joblib
+*.parquet
+*.feather
+*.h5
+*.onnx
+.cache/
+
+# Python caches and build artifacts.
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+
+# Virtual environments.
+.venv/
+venv/
+env/
+ENV/
+
+# Editors and OS files.
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets and local configuration.
+.env
+.env.*
+*.pem
+*.key
+*credentials*
+*secrets*
+local_settings.py
