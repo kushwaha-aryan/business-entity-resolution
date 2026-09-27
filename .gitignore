@@ -2,6 +2,15 @@
 data/*
 !data/.gitkeep
 
+# Competition archive and the extracted training files (local only, ~2.4 GB).
+dataset/
+
+# Scratch working directory: extracted data, logs, intermediate artifacts.
+experiments/work_match_a2/
+
+# Model artifacts and caches produced by the experiment runners.
+experiments/checkpoints/
+
 # Generated outputs (candidate pairs, submission files, reports).
 output/*
 !output/.gitkeep
@@ -13,7 +22,8 @@ output/*
 *.parquet
 *.feather
 *.h5
-*.onnx
+*.npy
+*.npz
 .cache/
 
 # Python caches and build artifacts.
