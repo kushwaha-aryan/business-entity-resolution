@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Business Entity Resolution — Project Atlas</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1c2430; --line:#30363d; --line2:#3d4653;
+    --fg:#e6edf3; --fg2:#adbac7; --fg3:#768390;
+    --blue:#4c8eda; --green:#57ab5a; --amber:#daa312; --red:#e5534b;
+    --purple:#b083f0; --cyan:#39c5cf; --pink:#db61a2; --orange:#e0823d;
+    --hl:#f0b429;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--fg);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;
+  }
+  code,pre,.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+
+  /* ---------- header ---------- */
+  header{
+    height:56px; display:flex; align-items:center; gap:18px; padding:0 18px;
+    background:var(--bg2); border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .brand h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}
+  .brand span{font-size:11px;color:var(--fg3)}
+  nav{display:flex;gap:2px;margin-left:8px;flex-wrap:wrap}
+  nav button{
+    background:transparent;border:1px solid transparent;color:var(--fg2);
+    padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:500;
+  }
+  nav button:hover{background:var(--bg3);color:var(--fg)}
+  nav button.on{background:#1f6feb22;border-color:#1f6feb66;color:#79c0ff}
+  .hud{margin-left:auto;display:flex;gap:6px;align-items:center}
+  .hud button{
+    background:var(--bg3);border:1px solid var(--line);color:var(--fg2);
+    padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11.5px;
+  }
+  .hud button:hover{border-color:var(--line2);color:var(--fg)}
+
+  /* ---------- layout ---------- */
+  .wrap{display:flex;height:calc(100% - 56px)}
+  .main{flex:1;position:relative;overflow:hidden}
+  svg{width:100%;height:100%;display:block;cursor:grab}
+  svg.drag{cursor:grabbing}
+
+  /* ---------- graph nodes ---------- */
+.node rect {
+  fill: var(--bg2);
+  stroke: var(--line2);
+  stroke-width: 1.5px;
+  transition: fill 0.12s, stroke 0.12s;
+}
+  .node{cursor:pointer}
+  .node:hover rect{stroke:var(--blue);fill:var(--bg3)}
+  .node.sel rect{stroke:var(--hl);stroke-width:2.5;fill:#1c2430}
+  .node .t{font-size:12.5px;font-weight:600;fill:var(--fg)}
+  .node .s{font-size:10.5px;fill:var(--fg3);font-family:ui-monospace,monospace}
+  .node .badge{font-size:9.5px;font-weight:700;letter-spacing:.4px}
+  .edge{stroke:var(--line2);stroke-width:1.6;fill:none}
+  .edge.hot{stroke:var(--hl);stroke-width:2.6}
+  .elabel{font-size:9.5px;fill:var(--fg3);font-family:ui-monospace,monospace}
+  .grp rect {
+  fill: rgba(255, 255, 255, 0.02);
+  stroke: var(--line);
+  stroke-dasharray: 4 4;
+  rx: 12px;
+}
+  .grp .gt{font-size:11px;fill:var(--fg3);font-weight:700;letter-spacing:1px}
+
+  /* ---------- legend ---------- */
+  .legend{
+    position:absolute;left:14px;bottom:14px;background:#161b22ee;border:1px solid var(--line);
+    border-radius:8px;padding:9px 12px;font-size:11px;color:var(--fg2);
+    display:flex;flex-direction:column;gap:4px;backdrop-filter:blur(3px);
+  }
+  .legend div{display:flex;align-items:center;gap:7px}
+  .sw{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+  /* ---------- stats strip ---------- */
+  .stats{
+    position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:6px;
+    background:#161b22ee;border:1px solid var(--line);border-radius:8px;padding:10px 13px;
+    font-size:11.5px;backdrop-filter:blur(3px);min-width:210px;
+  }
+  .stats h4{margin:0 0 3px;font-size:10px;letter-spacing:1px;color:var(--fg3);font-weight:700}
+  .stats .row{display:flex;justify-content:space-between;gap:14px}
+  .stats .row b{font-weight:600;color:var(--fg)}
+  .stats .row span{color:var(--fg3);font-family:ui-monospace,monospace;font-size:11px}
+
+  /* ---------- detail panel ---------- */
+  .panel{
+    width:0;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--line);
+    overflow-y:auto;overflow-x:hidden;transition:width .18s ease;
+  }
+  .panel.open{width:480px}
+  .panel::-webkit-scrollbar{width:9px}
+  .panel::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
+  .p-head{
+    position:sticky;top:0;background:var(--bg2);border-bottom:1px solid var(--line);
+    padding:15px 18px 12px;z-index:2;
+  }
+  .p-kind{font-size:9.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase}
+  .p-head h2{margin:5px 0 3px;font-size:17px;font-weight:650;line-height:1.3}
+  .p-head .path{font-size:11px;color:var(--fg3);font-family:ui-monospace,monospace}
+  .p-body{padding:16px 18px 60px}
+  .p-body h3{
+    font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--fg3);
+    margin:20px 0 7px;padding-bottom:4px;border-bottom:1px solid var(--line);font-weight:700;
+  }
+  .p-body h3:first-child{margin-top:0}
+  .p-body p{margin:0 0 10px;color:var(--fg2);font-size:13px}
+  .p-body ul{margin:0 0 10px;padding-left:18px;color:var(--fg2);font-size:13px}
+  .p-body li{margin-bottom:5px}
+  .p-body code{background:#010409;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11.5px;color:#a5d6ff}
+  pre{
+    background:#010409;border:1px solid var(--line);border-radius:6px;padding:11px 13px;
+    overflow-x:auto;font-size:11.5px;line-height:1.55;color:#c9d1d9;margin:0 0 10px;
+  }
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:4px 12px;font-size:12.5px;margin-bottom:10px}
+  .kv dt{color:var(--fg3);font-family:ui-monospace,monospace;font-size:11px}
+  .kv dd{margin:0;color:var(--fg2)}
+  .pit{border-left:3px solid var(--amber);background:#daa3120f;padding:9px 12px;border-radius:0 6px 6px 0;margin-bottom:10px}
+  .pit.ok{border-color:var(--green);background:#57ab5a0f}
+  .pit.bad{border-color:var(--red);background:#e5534b0f}
+  .pit b{font-size:11px;letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:3px}
+  .pit span{font-size:12.5px;color:var(--fg2)}
+  .io{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .chip{
+    background:var(--bg3);border:1px solid var(--line2);border-radius:5px;
+    padding:3px 8px;font-size:11px;font-family:ui-monospace,monospace;color:var(--fg2);
+  }
+  .chip.in{border-color:#57ab5a55;color:#7ee787}
+  .chip.out{border-color:#4c8eda55;color:#79c0ff}
+  .close{
+    position:absolute;top:13px;right:15px;background:none;border:none;color:var(--fg3);
+    cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;border-radius:4px;
+  }
+  .close:hover{background:var(--bg3);color:var(--fg)}
+  .p-head{position:sticky}
+  .help{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;
+    color:var(--fg3);font-size:13px;pointer-events:none;
+  }
+  @media(max-width:1100px){.panel.open{width:380px}.stats{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Business Entity Resolution</h1>
+    <span>Project Atlas — architecture &amp; pipeline explorer</span>
+  </div>
+  <nav id="nav"></nav>
+  <div class="hud">
+    <button id="zin">+</button>
+    <button id="zout">&minus;</button>
+    <button id="fit">fit</button>
+    <button id="relayout">relayout</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="main">
+    <svg id="svg"><g id="viewport"></g></svg>
+    <div class="legend" id="legend"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <aside class="panel" id="panel">
+    <button class="close" id="close">&times;</button>
+    <div class="p-head" id="phead"></div>
+    <div class="p-body" id="pbody"></div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   NODE REGISTRY  — every entry mirrors the real code in src/ and the runners.
+   ========================================================================== */
+const K = {
+  file:{c:"#4c8eda",t:"FILE"},
+  fn:{c:"#57ab5a",t:"FUNCTION"},
+  stage:{c:"#b083f0",t:"STAGE"},
+  art:{c:"#e0823d",t:"ARTIFACT"},
+  out:{c:"#39c5cf",t:"OUTPUT"},
+  dec:{c:"#f0b429",t:"DECISION"},
+  data:{c:"#adbac7",t:"DATA"},
+  gap:{c:"#e5534b",t:"GAP"},
+  env:{c:"#db61a2",t:"ENV"}
+};
+
+const N = {};
+
+/* ------------------------------------------------------------------ DATA */
+N.ds_train1={k:K.data,label:"train_source1.tsv",sub:"2,206,821 rows · 210 MB",
+  path:"dataset/train/",file2:"",lines:"",
+  d:["The deduplicated <b>reference</b> source. Every other file is matched <i>to</i> this one, and only S1 entities appear as rows in the submission."],
+  kv:{"Columns":"entity_id, business_name, business_address, country","Separator":"TAB (\u005ct) — reading without sep='\\t' silently yields one column","Countries":"US 1,323,633 · India 883,188","Empty name":"0 (0.000%)","Empty address":"0 (0.000%)","Mean name length":"24.0 chars"},
+  pit:{t:"ground truth covers all 2,206,821",b:"",s:"train_ground_truth.tsv has exactly one row per S1 entity, so no S1 is missing a label. 123,247 of them carry an empty match list (true singletons)."}};
+
+N.ds_train2={k:K.data,label:"train_source2.tsv",sub:"5,034,616 rows · 489 MB",
+  path:"dataset/train/",
+  d:["Noisy business records. Roughly 2.3 S2 rows exist per S1 entity. S2 ids are unique only <i>within</i> S2, so an S2 and an S3 row may share a literal id string."],
+  kv:{"Countries":"US 3,016,817 · India 2,017,799","Empty address":"168,967 (3.356%)","Mean name length":"25.1 chars"},
+  pit:{t:"id collision is real",b:"bad",s:"RecordRef identity is the (source, entity_id) <i>pair</i>, never the bare id. Keying a dict on entity_id alone would silently merge an S2 row with an S3 row and attribute a candidate to the wrong source."}};
+
+N.ds_train3={k:K.data,label:"train_source3.tsv",sub:"5,285,603 rows · 504 MB",
+  path:"dataset/train/",
+  d:["The second noisy source. Together with S2 it forms the 10,320,219-row candidate pool that blocking indexes once and queries 2.2M times."],
+  kv:{"Countries":"US 3,170,056 · India 2,115,547","Empty address":"175,916 (3.328%)","Mean name length":"25.2 chars"},
+  pit:{t:"pool is the hot path",b:"",s:"Everything downstream is bounded by this 10.32M-row index. Building it costs ~4 min; querying 1.73M test S1 against it is the single most expensive operation in the project."}};
+
+N.ds_test1={k:K.data,label:"test_source1.tsv",sub:"1,732,544 rows · 175 MB",
+  path:"dataset/test/",
+  d:["S1 entities to predict for. <b>Every one of them must get exactly one row</b> in matching_results.tsv, or the submission is rejected outright."],
+  kv:{"Countries":"India 809,986 · US 663,106 · <b>France 259,452</b>","Empty name/address":"0 / 0"},
+  pit:{t:"France is unseen in training",b:"",s:"France appears only in test. Country is embedded inside every blocking key, so French rows can only ever match French rows — that is the desired behaviour, but it means the 259,452 French S1 rows are scored entirely on a name-key path that was never validated on French addresses."}};
+
+N.ds_test23={k:K.data,label:"test_source2/3.tsv",sub:"4,887,273 + 5,082,316 · 1.0 GB",
+  path:"dataset/test/",
+  d:["The test candidate pool, 9,969,589 rows. Indexed exactly like the training pool, with no test labels ever being read."],
+  kv:{"S2 countries":"India 2,312,565 · US 1,871,330 · France 703,378","S3 countries":"India 2,405,000 · US 1,945,701 · France 731,615","Empty address":"S2 2.648% · S3 2.678%"},
+  pit:{t:"read-only until the model is frozen",b:"bad",s:"These files may only be opened during final inference, after blocking, features, model and threshold are all locked. No test statistic may feed back into any of those choices."}};
+
+N.ds_gt={k:K.data,label:"train_ground_truth.tsv",sub:"2,206,821 rows · 127 MB",
+  path:"dataset/train/",
+  d:["The only source of supervision. Two columns: <code>source1_entity_id</code> and a comma-separated <code>matched_entity_ids</code> list, empty for singletons. 7,638,365 true pairs in total — 3,693,619 into S2 and 3,944,746 into S3."],
+  kv:{"S1 rows":"2,206,821 (100% of train S1)","<b>Singletons</b>":"<b>123,247 (5.585%)</b>","Mean matches / entity":"3.461","Targets S2":"3,693,619 (48.4%)","Targets S3":"3,944,746 (51.6%)"},
+  code:"matches-per-entity histogram\n  0 (singleton) 123,247   5  321,957\n  1             119,157   6  164,868\n  2             375,212   7   63,968\n  3             530,841   8   18,680\n  4             484,115   9    4,205\n                       10+     571",
+  pit:{t:"an absent row means 'no match'",b:"",s:"label_candidates() defaults a reference id that is missing from this file to an empty match set. The file enumerates matches exhaustively, so absence is negative evidence, not missing data."}};
+
+/* -------------------------------------------------------- PREPROCESSING */
+N.pp_entry={k:K.fn,label:"preprocess_record()",sub:"the only record-level entry point",
+  path:"src/preprocessing.py:255",
+  d:["The single funnel every source row passes through. It composes the field normalisers and returns a frozen <code>PreprocessedRecord</code>. No file I/O, no third-party imports, no randomness — the whole module is pure, which is what makes cached artefacts valid."],
+  io:{in:["entity_id","business_name","business_address","country"],out:["PreprocessedRecord"]},
+  code:"name    = normalize_name(business_name)\naddress = normalize_address(business_address)\nPreprocessedRecord(\n    entity_id=entity_id,          # never altered\n    country  = normalize_country(country),\n    name=name, name_core=core_tokens(name),\n    address=address,\n    address_tokens=address_tokens(address),\n    address_alpha_tokens=address_alpha_tokens(address),\n    house_number=extract_house_number(address),\n    name_is_missing=is_missing(business_name),\n    address_is_missing=is_missing(business_address),\n)",
+  pit:{t:"entity_id is never touched",b:"ok",s:"Normalisation applies to text fields only. Every id keeps its original spelling and prefix, which is what lets the submission be joined back to the source files."}};
+
+N.pp_norm_text={k:K.fn,label:"normalize_text()",sub:"casefold · & → and · accents · punctuation",
+  path:"src/preprocessing.py:118",
+  d:["The canonical comparison form. The order of the steps matters: casefold first (so the apostrophe list is matched in its folded form), then ampersand expansion, then apostrophe removal, then accent folding, then separator substitution, then whitespace collapse."],
+  code:"text = value.casefold().replace('&', ' and ')\nfor mark in (\"'\", '\\u2019', '\\u02bc', '\\uff07'):\n    text = text.replace(mark, '')      # drop, don't split\ntext = _fold_latin_accents(text)\nreturn _WHITESPACE_RE.sub(' ', _to_separators(text)).strip()",
+  pit:{t:"ampersand becomes a real word",b:"",s:"<code>&</code> expands to <code>and</code> rather than a space, so <code>A&amp;B</code> and <code>A and B</code> normalise identically. But <code>and</code> is also in LEGAL_SUFFIX_TOKENS, so it is later dropped from core name tokens — the two decisions are independent and both deliberate."}};
+
+N.pp_fold={k:K.fn,label:"_fold_latin_accents()",sub:"NFKD → strip Mn on Latin → NFC",
+  path:"src/preprocessing.py:80",
+  d:["Folds accents only where an accent sits directly on a Latin letter. A Devanagari combining vowel sign is preserved because the character before it is not a Latin letter. A naive <code>category(ch)=='Mn'</code> filter would strip Indic vowel signs and silently damage every native-script name."],
+  code:"out, on_latin = [], False\nfor ch in unicodedata.normalize('NFKD', text):\n    if unicodedata.category(ch) == 'Mn' and on_latin:\n        continue                       # accent on a Latin letter\n    out.append(ch)\n    on_latin = ch.isascii() and ch.isalpha()\nreturn unicodedata.normalize('NFC', ''.join(out))",
+  pit:{t:"recomposition is required, not cosmetic",b:"",s:"Without the final NFC pass, NFKD would leave Indic consonants in a decomposed form that is needlessly hard to compare byte-wise and in blocking keys."}};
+
+N.pp_sep={k:K.fn,label:"_to_separators()",sub:"keeps letters, numbers and marks of any script",
+  path:"src/preprocessing.py:102",
+  d:["Replaces every character that is not a letter, number or mark with a space. Marks are kept because they carry meaning in Indic scripts. A regex fast path is used for pure-ASCII input, where the two implementations are provably identical."],
+  code:"if text.isascii():\n    return _SEPARATORS_RE.sub(' ', text)      # [\\W_]+ with re.UNICODE\nreturn ''.join(\n    ch if unicodedata.category(ch)[0] in ('L','N','M') else ' '\n    for ch in text)",
+  pit:{t:"ASCII fast path is safe",b:"ok",s:"No mark characters exist in ASCII, so for ASCII input the per-character loop and the regex produce identical output. The shortcut cannot change a result."}};
+
+N.pp_missing={k:K.fn,label:"is_missing()",sub:"whole-field placeholder check only",
+  path:"src/preprocessing.py:139",
+  d:["A field counts as missing when it is <code>None</code>, blank, or equal to a literal placeholder such as <code>null</code>, <code>n/a</code> or <code>na</code>. The normalised spellings are derived from the same tuple, so the raw and normalised checks can never drift apart."],
+  kv:{"Placeholders":"'', -, --, ?, n/a, na, nan, null","Matching":"whole field only, case-insensitive"},
+  pit:{t:"a stray 'na' inside a real address is kept",b:"",s:"Only whole-field matches are treated as missing. Discarding a token that happens to equal 'na' would throw away genuine address content."}};
+
+N.pp_country={k:K.fn,label:"normalize_country()",sub:"open set — deliberately NOT filtered",
+  path:"src/preprocessing.py:173",
+  d:["Returns the normalised label as an opaque string. No vocabulary, no mapping to codes, no one-hot, no allow-list. This is a direct requirement of the problem statement."],
+  code:"if value is None or not value.strip():\n    return ''\nreturn normalize_text(value)",
+  pit:{t:"MISSING_PLACEHOLDERS is intentionally NOT applied here",b:"bad",s:"<code>na</code> is a legitimate country code (Namibia) as well as a common way of writing 'not available'. Applying the free-text placeholder set to country would silently delete a real open-set value. Only a value with no characters at all is dropped."}};
+
+N.pp_core={k:K.fn,label:"core_tokens()",sub:"drops 18 legal / generic tokens",
+  path:"src/preprocessing.py:189",
+  d:["Takes an <i>already normalised</i> name so callers never pay to normalise the same field twice. Returns tokens in original order with the legal-suffix set removed."],
+  kv:{"Removed set":"inc, llc, ltd, co, corp, company, plc, gmbh, sa, sas, pvt, private, limited, llp, lp, the, and, of, center, services, group, enterprises","Removal":"per token, anywhere — not just trailing"},
+  pit:{t:"two preserved quirks",b:"",s:"(1) <code>and</code>, <code>of</code> and <code>the</code> are removed wherever they occur. (2) Removal is per token rather than only at the end. Both were present when the 76.6% blocking recall was measured, so they are kept on purpose. Extending this set changes every name blocking key and invalidates the blocking numbers."}};
+
+N.pp_addr={k:K.fn,label:"address_tokens() / address_alpha_tokens()",sub:"all tokens vs. meaningful words",
+  path:"src/preprocessing.py:201, 208",
+  d:["Two views of the address. <code>address_tokens</code> is every token including numbers and short words. <code>address_alpha_tokens</code> keeps only tokens of length ≥ 3 that contain a letter — the words worth blocking and scoring on."],
+  pit:{t:"'contains a letter', not isalpha()",b:"bad",s:"<code>str.isalpha()</code> returns False for a Devanagari word carrying a vowel sign, so using it would silently drop every native-script address word. The check is a per-character category test instead."}};
+
+N.pp_house={k:K.fn,label:"extract_house_number()",sub:"first all-digit token, else None",
+  path:"src/preprocessing.py:221",
+  d:["Scans address tokens in order and returns the first one that is entirely digits. A house number is optional: the function returns <code>None</code> rather than guessing, and <code>str.isdigit()</code> is Unicode-aware so native-script digits work."],
+  pit:{t:"this single function gates the whole address key family",b:"bad",s:"Because <code>address_blocking_keys()</code> returns an empty tuple when there is no house number, any record without a digit token can <i>only</i> be reached through the name key. This is the suspected failure mode for French test data, whose addresses often lack a leading house number."}};
+
+N.pp_rec={k:K.data,label:"PreprocessedRecord",sub:"frozen dataclass · 10 fields",
+  path:"src/preprocessing.py:239",
+  d:["The currency of the whole pipeline. Frozen, so it is hashable and safe to share. Built once per source row and then reused for every pair it participates in, which is what makes the index cheap."],
+  kv:{"identity":"entity_id","text":"country, name, address","derived":"name_core, address_tokens, address_alpha_tokens, house_number","flags":"name_is_missing, address_is_missing"},
+  pit:{t:"reuse across candidates is the design",b:"ok",s:"One S1 record is compared against ~319 candidates, so its derived token sets are computed once and read many times. Anything that forces recomputation per pair shows up directly in wall-clock time."}};
+
+/* -------------------------------------------------------------- BLOCKING */
+N.bl_cfg={k:K.fn,label:"BlockingConfig",sub:"2 tok · prefix 4 · addr prefix 3 · cap 1000",
+  path:"src/blocking.py:73",
+  d:["Frozen config carrying the <i>structure</i> of the keys. Deliberately does not encode any measured recall or volume, so the numbers can be re-derived on new data instead of being trusted blindly. Every field is validated in <code>__post_init__</code>."],
+  kv:{"name_token_count":"2","name_prefix_length":"4","address_prefix_length":"3","address_word_count":"2","max_group_size":"1000"},
+  pit:{t:"318.7 candidates per S1 entity is high",b:"bad",s:"Measured on the 20k subset with defaults. Under a precision-weighted F0.5 that many candidates is mostly false-positive surface. Tightening the cap is the single highest-leverage change available and it also cuts inference cost proportionally."}};
+
+N.bl_ref={k:K.fn,label:"RecordRef / CandidatePair",sub:"(source, entity_id) identity",
+  path:"src/blocking.py:112, 132",
+  d:["Both are frozen, ordered dataclasses. <code>CandidatePair</code> is one retrieved (reference, candidate) pair and is what the whole feature and labelling layer consumes."],
+  pit:{t:"source is part of the identity",b:"bad",s:"S2 and S3 ids are only unique within their own file, so two rows from different sources can carry the same literal id. Keying on the id alone would silently merge them and attribute a candidate to the wrong source."}};
+
+N.bl_name={k:K.fn,label:"name_blocking_key()",sub:"the name_2tok key",
+  path:"src/blocking.py:144",
+  d:["Sorts the core name tokens alphabetically, keeps the first two, cuts each to four characters, and prefixes the tag and country. Truncation is what absorbs small spelling variations and keeps the key short enough to be selective."],
+  code:"tokens = sorted(record.name_core)          # order-insensitive\nif not tokens:\n    return None\nreturn ('name_2tok', record.country,\n        *(t[:4] for t in tokens[:2]))",
+  pit:{t:"a one-token key is a DIFFERENT tuple",b:"",s:"<code>('name_2tok','us','cafe')</code> ≠ <code>('name_2tok','us','cafe','blue')</code>. So 'Cafe' does not join the group of 'Cafe Blue' — the single-token fallback groups short names with each other, it does not let them match longer names. This is the measured behaviour and is kept rather than 'fixed'."}};
+
+N.bl_addr={k:K.fn,label:"address_blocking_keys()",sub:"addr_ht0 / addr_ht1",
+  path:"src/blocking.py:205",
+  d:["Pairs the house number with a 3-character prefix of each of the two longest useful address words. Two records must agree on the building <i>and</i> roughly on the street before they are compared at all."],
+  code:"house_number = record.house_number\nif not house_number:\n    return ()          # nothing to anchor to\nfor position, word in enumerate(_longest_address_words(record, 2)):\n    keys.append((f'addr_ht{position}', record.country,\n                 house_number, word[:3]))\nreturn tuple(dict.fromkeys(keys))   # dedupe",
+  pit:{t:"requires a house number — no key otherwise",b:"",s:"A street word alone would group every business on that street, which is exactly the flooding the group cap exists to limit. Such records simply produce no address key and are reachable only via the name key. This is an intended recall cost, not a crash."}};
+
+N.bl_keys={k:K.fn,label:"blocking_keys()",sub:"union of all routes, deterministic order",
+  path:"src/blocking.py:245",
+  d:["Returns a tuple rather than a set so iteration order is fixed and the index and its statistics stay reproducible. A pair survives if <i>any</i> route retrieves it, which is why the routes are complementary rather than ranked: one weak key cannot cancel out a good one from another."],
+  pit:{t:"strategy tag prevents cross-family collision",b:"ok",s:"The leading tag means a name key can never collide with an address key, even if a country label or token happens to look like a house number. It also means the families could later share one dict without a migration."}};
+
+N.bl_index={k:K.fn,label:"BlockingIndex",sub:"dict key → [RecordRef]",
+  path:"src/blocking.py:285",
+  d:["One flat dict for all three families, since the strategy tag keeps them separate. Lookups stay a single dict probe per key and <code>stats()</code> can report across all strategies at once. <code>retrieve()</code> yields the raw union including duplicates on purpose; the caller dedupes once at the end."],
+  code:"def retrieve(self, record):\n    for key in blocking_keys(record, self.config):\n        bucket = self._buckets.get(key)\n        if bucket:\n            yield from bucket\n\ndef candidates_for(self, record):\n    return tuple(sorted(set(self.retrieve(record))))",
+  pit:{t:"the cap is applied at INSERTION, so contents depend on input order",b:"",s:"The first 1000 records to reach a key win. Records are added in file order, which is deterministic, so repeated runs agree — but a key that overflows is a key too generic to be evidence of a match, and the overflow is dropped rather than truncated."}};
+
+N.bl_cand={k:K.fn,label:"generate_candidates()",sub:"dedup + stable order + self-pair guard",
+  path:"src/blocking.py:412",
+  d:["Wraps <code>candidates_for</code> into <code>CandidatePair</code> objects, sorted by <code>(source, entity_id)</code> so any later feature table or output file is byte-identical across runs."],
+  pit:{t:"set iteration order is not reproducible",b:"",s:"Python randomises string hashing per process, so a set's order differs between runs. Sorting is what makes the downstream matrices and TSV output deterministic."}};
+
+/* -------------------------------------------------------------- FEATURES */
+N.fe_prim={k:K.fn,label:"_ratio / _jaccard / _bigrams",sub:"similarity primitives, cached",
+  path:"src/features.py:64-111",
+  d:["Four primitives feed everything else. <code>_bigrams</code> and <code>_token_set</code> are wrapped in <code>lru_cache</code> because one S1 record is re-read for every one of its candidates. <code>_ratio</code> disables SequenceMatcher's autojunk heuristic."],
+  code:"def _ratio(a, b):\n    return SequenceMatcher(None, a, b, autojunk=False).ratio()\n\n@lru_cache(maxsize=1 << 16)\ndef _bigrams(text):\n    if len(text) < 2:\n        return frozenset((text,)) if text else frozenset()\n    return frozenset(text[i:i+2] for i in range(len(text)-1))",
+  pit:{t:"autojunk would throw away the signal",b:"",s:"With autojunk=True, characters appearing in more than 1% of a sequence of length ≥200 are discarded. For a long business address that is exactly the repeated street and city words that carry the match evidence. Business names are short so it rarely fires, but relying on that would make the feature depend on a length threshold nobody remembers."}};
+
+N.fe_pair={k:K.fn,label:"PairFeatures",sub:"24 floats — field order IS vector order",
+  path:"src/features.py:136",
+  d:["Nine name features, seven address features, two house-number features, two country features and four quality/presence flags. <code>FEATURE_NAMES</code> is derived from the dataclass field order, so the two cannot drift apart."],
+  code:"name:    exact, char_ratio, bigram_jaccard, len_ratio,\n          core_sorted_exact, core_jaccard, core_overlap,\n          core_token_ratio, core_prefix4_equal\naddress: exact, char_ratio, bigram_jaccard, token_jaccard,\n          alpha_jaccard, alpha_overlap, token_ratio\nhouse:   house_number_equal, house_number_conflict\ncountry: country_equal, country_present_either\nquality: name_present_both, address_present_both,\n          name_core_present_either, address_alpha_present_either",
+  pit:{t:"there is no NaN anywhere, by design",b:"ok",s:"A tree model can route around NaN but a linear model propagates it into every downstream product. Absence is encoded as 0.0 plus a presence flag instead — see the gating rule below."}};
+
+N.fe_extract={k:K.fn,label:"extract_features()",sub:"the 24-feature computation",
+  path:"src/features.py:217",
+  d:["Turns two preprocessed records into a <code>PairFeatures</code>. The pair is treated as unordered, so the features cannot encode a source ranking the matching stage is not supposed to have."],
+  code:"# gated on BOTH sides having the field\nif name_present:\n    name_exact = 1.0 if name_l == name_r else 0.0\n    name_char_ratio = _ratio(name_l, name_r)\n    ...\nelse:\n    name_exact = name_char_ratio = 0.0   # 'no evidence', NOT 'no similarity'",
+  pit:{t:"the single most important rule in the module",b:"",s:"When both records have no address, a naive <code>address_exact</code> returns 1.0 and the model learns 'identical address means match' from a pair carrying no address evidence at all. Every field-level similarity is gated: 0.0 means NO EVIDENCE, and the companion <code>*_present_*</code> flag is what lets the model tell that apart from evidence of difference."}};
+
+N.fe_vec={k:K.fn,label:"to_vector() / featurize()",sub:"dataclass → flat float tuple",
+  path:"src/features.py:328, 338",
+  d:["Built from dataclass field order rather than a name lookup, so a typo cannot silently produce a column of zeros. <code>featurize</code> is the hot path for a full pass; <code>featurize_batch</code> preserves row order so the matrix stays aligned with the candidate list and its labels."],
+  code:"return tuple(getattr(features, name) for name in FEATURE_NAMES)   # 24 lookups",
+  pit:{t:"24 getattr calls per pair — a measured cost",b:"bad",s:"This and the 24-field dataclass construction are the bulk of runtime, not the maths. Measured throughput on the laptop was 1,951 rows/s, which projects to ~193 hours for the full train+test pass. Bypassing the dataclass and writing into a preallocated numpy row is the obvious optimisation."}};
+
+/* -------------------------------------------------------------- MATCHING */
+N.ma_load={k:K.fn,label:"iter_records() / load_ground_truth()",sub:"streaming TSV readers",
+  path:"src/matching.py:140, 96",
+  d:["Both stream their file with <code>csv.reader</code> and resolve column positions <i>by name</i>, so a reordered file still loads. Rows are yielded one at a time because the files are far too large to materialise; short rows are padded rather than skipped so a truncated row surfaces as a record with missing fields."],
+  pit:{t:"never load a whole source file",b:"",s:"Use <code>iter_records</code> and keep only the ids actually needed. <code>load_records</code> is for a slice or a candidate pool only."}};
+
+N.ma_label={k:K.fn,label:"label_candidates()",sub:"ground truth → 0/1 per pair",
+  path:"src/matching.py:221",
+  d:["A pair is positive iff the candidate id appears in the reference row's <code>matched_entity_ids</code>. A reference absent from the file is labelled negative — the right default, since the file enumerates matches."],
+  pit:{t:"un-retrieved pairs are NOT negatives",b:"bad",s:"A pair the blocking keys never retrieved is not evidence of a non-match, it is simply not a candidate. Treating it as a negative would measure blocking rather than the model, and would badly distort the class balance."}};
+
+N.ma_split={k:K.fn,label:"split_by_reference()",sub:"S1-level, salted BLAKE2b",
+  path:"src/matching.py:290",
+  d:["Every candidate of one S1 entity lands on the same side, so no business appears in both. The assignment is a salted BLAKE2b digest of the S1 id modulo 10000, compared against <code>validation_fraction × 10000</code>."],
+  code:"bucket = int.from_bytes(\n    hashlib.blake2b(f'{salt}\\x00{ref}'.encode(), digest_size=8).digest(),\n    'big') % 10_000",
+  pit:{t:"per-pair splitting would leak",b:"",s:"Splitting per pair would put the same business on both sides, letting the model memorise a name and address it then meets again in validation. The result would be inflated for reasons that have nothing to do with generalisation."},
+  pit2:{t:"singletons never enter this split",b:"bad",s:"The function iterates <i>labelled pairs</i>. An S1 with zero candidates contributes no pairs, so it is absent from both sides. Under the competition's macro metric those entities are 5.585% of the score and each is worth a full 1.0 for a correct empty prediction. The split and the metric both need to be entity-aware, not pair-aware."}};
+
+N.ma_micro={k:K.gap,label:"precision_recall_fbeta()",sub:"PAIR-LEVEL (micro) — the wrong metric",
+  path:"src/matching.py:335",
+  d:["Computes <code>1.25·P·R / (0.25·P + R)</code> over a flat sequence of pairs. Every pair weighs the same regardless of which S1 entity it belongs to, and entities with no pairs contribute nothing at all."],
+  code:"if precision == 0.0 or recall == 0.0:\n    return precision, recall, 0.0\nf = (1 + beta**2) * P * R / (beta**2 * P + R)",
+  pit:{t:"MISMATCHED TO THE COMPETITION METRIC",b:"bad",s:"The problem statement defines F0.5 as a <b>macro average over S1 entities</b>, with singletons scoring 1.0 for a correct empty prediction and 0.0 for any false prediction. This function pools pairs instead. Every recorded result to date — including the −0.0103 A2 delta — was measured with this function and is therefore provisional. The fix is a re-score, not a re-run: the checkpoints are already on disk."}};
+
+N.ma_thresh={k:K.fn,label:"evaluate_thresholds() / best_validation_threshold()",sub:"sweep 0.1…0.9",
+  path:"src/matching.py:374, 408",
+  d:["A handful of linear passes over the validation scores at nine fixed thresholds, reporting the full confusion matrix at each. Ties break toward the higher threshold."],
+  pit:{t:"optimistic by construction",b:"",s:"The same data chooses the threshold and then judges it. The docstring says so explicitly. A real estimate needs a held-out set that took no part in the choice."}};
+
+N.ma_model={k:K.fn,label:"LogisticMatcher",sub:"sklearn LogisticRegression, lbfgs",
+  path:"src/matching.py:441",
+  d:["A thin, inspectable wrapper. Exposes its fit summary and coefficients precisely so a baseline can be argued with — a coefficient whose sign contradicts its feature is a bug signal, not a curiosity."],
+  kv:{"C":"1.0","class_weight":"None","solver":"lbfgs","max_iter":"1000","random_state":"0","Features":"used unscaled"},
+  pit:{t:"features are deliberately unscaled",b:"ok",s:"Every similarity column already lies in [0,1] and the two count columns are small integers, so a scaler would change the regularisation geometry without adding information."},
+  pit2:{t:"class_weight=None is a measured choice, not a default",b:"",s:"The measured comparison on a 20k S1 slice: balanced → F0.5 0.9677 @ 0.9, None → 0.9712 @ 0.6. <code>balanced</code> upweights positives ~10x, dragging the boundary toward predicting more positives — the wrong direction for a precision-weighted metric. The margin was small on a head slice, so it is a lean rather than a settled result."}};
+
+/* ------------------------------------------------------------- RUNNERS */
+N.st1={k:K.stage,label:"Stage 1 · dataset",sub:"locate, extract, validate",
+  path:"experiments/run_match_a2_local.py",
+  d:["Resolves the training files, extracts the archive if needed, and writes a fingerprint marker so the stage is idempotent. The Kaggle variant additionally falls back to scanning for the four loose <code>train_*</code> files, because Kaggle sometimes mounts them unpacked rather than as a zip."],
+  pit:{t:"the test split is never opened here",b:"ok",s:"Only <code>train_*</code> files are read. A stage that accidentally reached for <code>test_source*</code> would invalidate the whole project's methodology, so the runner asserts it explicitly."}};
+
+N.st2={k:K.stage,label:"Stage 2 · subset + ground truth",sub:"deterministic 20k S1 slice",
+  path:"experiments/run_match_a2_local.py",
+  d:["Selects a reproducible S1 subset by salted modular hashing, then streams the ground truth keeping only the subset's ids. The full run uses all 2,206,821 S1 entities instead of a slice."],
+  kv:{"S1 salt":"exp20k-s1","Modulus":"110","Subset":"20,000 S1 entities","GT rows":"20,000","True pairs":"69,301"},
+  pit:{t:"determinism comes from a hash, not a shuffle",b:"ok",s:"A seeded shuffle depends on the sequence of everything shuffled before it, so the subset would drift as the candidate set changed. A salted digest is a pure function of the id."}};
+
+N.st3={k:K.stage,label:"Stage 3 · candidate generation",sub:"the recall ceiling",
+  path:"experiments/run_match_a2_local.py",
+  d:["Streams the full 10.32M S2+S3 pool into the blocking index, then queries every S1 entity and unions the two arms. Checkpoints atomically at the end of the stage."],
+  kv:{"Measured (20k)":"15m46s","Production":"6,373,030 · 318.7/S1 · recall 79.83%","+A2":"7,580,413 · 379.0/S1 · recall 84.15%","A2-only added":"1,207,383 candidates, 2,995 true pairs"},
+  pit:{t:"blocking is an upper bound on recall",b:"",s:"If a true match is dropped here the matcher can never recover it. A better model cannot fix it. This is why the recall ceiling is measured and reported separately from model quality."}};
+
+N.st4={k:K.stage,label:"Stage 4 · feature generation",sub:"24 features × every pair",
+  path:"experiments/run_match_a2_local.py",
+  d:["Writes the feature matrix as a float32 memmap and checkpoints per source, so an interrupted pass resumes. This is the single most expensive stage."],
+  kv:{"Measured (20k)":"1h04m35s for 7,580,413 rows","Throughput":"1,951 rows/s on 2 pinned CPU cores","Matrix":"7,580,413 × 24 float32 = 728 MB"},
+  pit:{t:"projected full-scale cost is prohibitive",b:"bad",s:"At 318.7 candidates/S1 the full training pass is ~703M rows and test inference ~657M rows. At the measured rate that is ~100 h and ~93 h respectively. Scaling the current design up is not viable — the hot loop needs rewriting and the matrix must be chunked rather than materialised."}};
+
+N.st5={k:K.stage,label:"Stage 5 · model fit + threshold",sub:"both arms, S1-level split",
+  path:"experiments/run_match_a2_local.py",
+  d:["Fits one <code>LogisticMatcher</code> per arm on the S1-level split, sweeps thresholds, and records precision / recall / F0.5 plus the confusion matrix. Fast by comparison — 36 s for both arms."],
+  kv:{"Split":"15,982 train S1 / 4,018 validation S1","Split salt":"exp20k-split-v1, fraction 0.2","Production":"P 0.9397 · R 0.7575 · <b>F0.5 0.8966 @ 0.7</b>","Production + A2":"P 0.9340 · R 0.7357 · <b>F0.5 0.8862 @ 0.7</b>"},
+  pit:{t:"real bug found here — label/feature misalignment",b:"bad",s:"The production arm built its feature matrix as <code>X[trn_idx]</code>, but <code>trn_idx</code> is an index into the arm's <i>subset</i> while <code>X</code> is the full union matrix. Production labels were therefore paired with arbitrary union rows. The fit could only learn the base rate, collapsing every score below 0.1 and reporting F0.5 = 0.0000. The union arm was unaffected because its mask is None, so no offset is applied. Fixed by mapping subset indices through the selection array."}};
+
+N.st6={k:K.stage,label:"Stage 6 · report",sub:"A/B comparison written out",
+  path:"experiments/run_match_a2_local.py",
+  d:["Writes a human-readable report plus a JSON summary, including the thermal-guard report and per-arm threshold sweeps."],
+  pit:{t:"diagnostic, not competition performance",b:"",s:"These are pair-level micro numbers on a 20k S1 slice. The leaderboard uses macro F0.5 over all 1.73M test S1. The report itself carries a banner saying so; that framing must survive into the final documentation."}};
+
+/* ------------------------------------------------------------- EXPERIMENTS */
+N.ex_ab={k:K.dec,label:"A2 blocking experiment",sub:"COMPLETE — conclusion provisional",
+  path:"experiments/checkpoints/match_a2/match_a2_report.txt",
+  d:["Tested whether adding a second name key — country + the first two core name tokens in <i>original order</i> + 4-char prefix — improves the pipeline. Identical subset, split, features, model and evaluation for both arms."],
+  kv:{"Arm A candidates":"6,373,030 (318.7/S1)","Arm B candidates":"7,580,413 (379.0/S1)","Blocking recall":"79.8329% → 84.1546% (+4.32pp)","A2-only recovered":"1,207,383 candidates, 2,995 true pairs","<b>Micro F0.5</b>":"0.8966 → 0.8862 (<b>−0.0103</b>)","A2-only validation TPs":"568, of which 202 predicted = 35.56% recall"},
+  pit:{t:"more recall made the score worse",b:"",s:"A2 bought +4.32pp of blocking recall and cost 0.0103 of F0.5. The extra candidates are dominated by noise the matcher cannot separate. The natural next question is whether a matcher change can recognise the genuine ones — which is exactly what the 568-pair diagnostic is for."}};
+
+N.ex_diag={k:K.gap,label:"A2-only diagnostic",sub:"NOT YET RUN — first task",
+  path:"planned",
+  d:["The 568 A2-only validation true pairs — recovered solely by A2, absent from production candidates, and therefore never scored by the production matcher — compared against production true positives, ordinary validation pairs, and the false-positive candidates."],
+  kv:{"Questions":"which features are weak · is it name or address · do house-number conflicts matter · does token order matter · spelling/noise · missing addresses · country behaviour · script differences · distinct score distribution"},
+  pit:{t:"must be re-scored under macro F0.5",b:"bad",s:"Any conclusion drawn from these 568 pairs using the existing micro sweep would inherit the metric error. The comparison has to be made on the macro metric before it can justify a pipeline change."}};
+
+N.ex_plan={k:K.dec,label:"Planned improvements",sub:"two-stage decision is the key idea",
+  path:"planned",
+  d:["Three controlled experiments, all reusing the existing 7.58M feature matrix so no new candidate generation is needed unless a blocking key actually changes."],
+  code:"1. two-stage decision   per-pair threshold + per-entity gate\n2. blocking volume       tighter keys, measure recall AND macro F0.5\n3. feature additions     only if the diagnostic justifies them",
+  pit:{t:"the per-entity gate is unavailable under micro",b:"",s:"Macro F0.5 rewards a correct empty prediction with a full 1.0, so 'predict nothing for this entity unless its best candidate clears a floor' is a real lever. Pooling pairs into one micro score throws that structure away entirely. This is the single change most likely to matter and it costs no extra featurisation."}};
+
+/* ------------------------------------------------------------- OUTPUT */
+N.o_match={k:K.out,label:"matching_results.tsv",sub:"THE SCORED FILE",
+  path:"output/",
+  d:["Final entity matches. This is the only file that goes on the leaderboard. Tab-separated, one row per test S1 entity."],
+  code:"source1_entity_id\tmatched_entity_ids\nS1-00001\tS2-00047,S2-00193,S3-00812\nS1-00002\tS3-00004\nS1-00003\t              <- tab still required",
+  kv:{"Required columns":"source1_entity_id, matched_entity_ids","Separator":"TAB","ID lists":"comma-separated, unquoted, no duplicates","Coverage":"all 1,732,544 test S1, exactly one row each","Empty list":"allowed and correct for singletons"},
+  pit:{t:"a singleton row must still contain a tab",b:"bad",s:"<code>S1-00003\\n</code> without a tab is a 'malformed row (no tab)' failure. It must be written as <code>S1-00003\\t\\n</code>."}};
+
+N.o_cand={k:K.out,label:"candidate_pairs.tsv",sub:"blocking output, not scored",
+  path:"output/",
+  d:["The candidate set <i>as the model actually consumed it</i> — the last stage before scoring, not a raw early blocking pass that was filtered further. Used to audit blocking quality and recall ceiling."],
+  code:"source1_entity_id\tcandidate_entity_ids",
+  pit:{t:"matches must be a subset of candidates",b:"",s:"A matched id that never appears as a candidate signals a pipeline bug. The validator warns about it rather than failing, but it means the recall ceiling was breached."}};
+
+N.o_val={k:K.out,label:"validate_submission.py",sub:"official stdlib validator",
+  path:"student_resource/utils/validate_submission.py",
+  d:["Checks both files against every rule the scorer enforces, so a rejection is caught locally instead of costing a submission."],
+  code:"python utils/validate_submission.py \\\n  --matching  output/matching_results.tsv \\\n  --candidate output/candidate_pairs.tsv \\\n  --test-dir  dataset/test [--check-ids]",
+  kv:{"Exit 0":"PASS — safe to submit","Exit 1":"numbered list of issues to fix","--check-ids":"off by default; loads all S2/S3 ids, a few GB"},
+  pit:{t:"ID existence is a diagnostic, not a gate",b:"",s:"A nonexistent id only lowers the score, it never rejects the submission. If <code>--check-ids</code> runs out of memory, drop <code>--candidate</code> — the candidate cross-check is the biggest memory user, and the matching file is the only one that is scored."}};
+
+/* --------------------------------------------------------- GAPS / PLANS */
+N.g_metric={k:K.gap,label:"Macro F0.5",sub:"REQUIRED — not implemented",
+  path:"planned · src/matching.py",
+  d:["The competition metric. F0.5 computed per S1 entity, then averaged over all of them. An entity with no true matches scores 1.0 on a correct empty prediction and 0.0 on any false prediction."],
+  code:"for each S1 entity e:\n    T = true match set, P = predicted set\n    if len(T) == 0:\n        f = 1.0 if len(P) == 0 else 0.0\n    else:\n        p = |T&P| / |P|          (0 if P empty)\n        r = |T&P| / |T|\n        f = 1.25*p*r / (0.25*p + r)\nmacro_F0.5 = mean over ALL S1 entities",
+  pit:{t:"this will move the optimal threshold sharply",b:"bad",s:"Because 5.585% of entities are singletons and a false prediction on one of them costs a full 1.0, the optimum sits far more aggressively than the 0.7 the micro sweep chose. Every threshold decision must be redone on this metric."}};
+
+N.g_agg={k:K.gap,label:"per-entity aggregation",sub:"REQUIRED — scores → decisions",
+  path:"planned",
+  d:["Pairwise scores have to become one decision per S1 entity before anything can be written out, and that decision needs both the pair threshold and the entity-level gate."],
+  code:"scores grouped by S1 entity\n  -> threshold the pairs\n  -> if max(score) < gate: predict EMPTY\n  -> else emit ids above threshold",
+  pit:{t:"cannot be derived from the pair-level sweep",b:"",s:"The existing <code>best_validation_threshold()</code> maximises a pooled micro score. It has no notion of an entity, so it cannot express a per-entity gate at all."}};
+
+N.g_sub={k:K.gap,label:"Submission writer",sub:"REQUIRED — not implemented",
+  path:"planned",
+  d:["Serialises both TSV files with the exact validator rules: tab separator, no index column, UTF-8, one row per test S1 entity in file order, empty list for singletons, deduplicated id lists, and matches guaranteed to be a subset of candidates."]};
+
+N.g_perf={k:K.gap,label:"Scale + throughput",sub:"REQUIRED — blocks the final run",
+  path:"planned",
+  d:["At the measured 318.7 candidates/S1 the full pass is ~703M train and ~657M test pairs. At 1,951 rows/s that is ~193 hours, and the feature matrix alone would be 67 GB — beyond Kaggle's disk and RAM."],
+  code:"fix 1  chunked streaming   featurise+score+write+discard per S1 block\nfix 2  hot-loop rewrite     preallocated rows, per-S1 derived data cached\nfix 3  compact index        sorted int arrays (~400 MB) not dict-of-objects\nfix 4  tighter blocking     fewer candidates helps precision AND cost",
+  pit:{t:"Kaggle RAM is ~13 GB, so this is not an optimisation",b:"bad",s:"A dict-of-lists-of-objects index over 10.3M records is what currently forces the memory ceiling. The compact representation is required for the full run to fit at all, while preserving identical key semantics and the cap."}};
+
+N.g_france={k:K.gap,label:"France readiness",sub:"RISK — untested path",
+  path:"planned",
+  d:["259,452 French S1 entities appear only in test. Country is inside every blocking key, so French rows can only match French rows — correct, but it means France is served entirely by the name key if addresses lack a leading house number."],
+  pit:{t:"address keys may never fire on French data",b:"bad",s:"<code>address_blocking_keys()</code> returns an empty tuple when there is no digit token, and French addresses ('rue de la Paix') have a different morphology from the US/India patterns the blocking was validated on. A label-free check — candidate volume and coverage per country — should run before committing, since no labels exist for this slice."}};
+
+N.e_local={k:K.env,label:"Local laptop",sub:"thermal-constrained",
+  path:"runtime",
+  d:["12 logical CPUs, 15.3 GB RAM, 196.5 GB free disk, Python 3.13.14, NumPy 2.5.1, scikit-learn 1.9.0. Used for all cheap analysis and the 20k controlled experiments."],
+  pit:{t:"reaches ~99 °C and the guard is unreliable",b:"bad",s:"The ACPI <code>cpuz</code> zone saturates near 99 °C regardless of load, clock cap or power plan, while Windows reports no throttling (<code>FLAGS=0</code>, <code>perfLimit=100%</code>). A 60 % frequency cap and a plan change produced zero effect. The Ryzen 7530U's Tjmax is 100 °C so the CPU was within spec, but two runs aborted before the guard was demoted to a pause-only watchdog. Heavy final execution belongs on Kaggle."}};
+
+N.e_kaggle={k:K.env,label:"Kaggle",sub:"chosen for heavy execution",
+  path:"runtime",
+  d:["~4 CPU cores, ~13 GB RAM, no thermal constraint. The dataset mounts at <code>/kaggle/input/datasets/kushwaha3272/dataset/student_resource/dataset</code>, sometimes as loose files rather than a zip. No kaggle CLI or API credentials are present, so code ships as notebook cells — a compressed source blob rather than one large paste."]};
+
+/* ==========================================================================
+   VIEWS  — layered top-to-bottom DAG. layer = x, order = y.
+   ========================================================================== */
+const VIEWS = {
+  overview:{
+    title:"System Overview",
+    note:"The whole competition problem in one picture: six data sources, five processing layers, two submission files.",
+    layers:[
+      ["ds_train1","ds_train2","ds_train3"],
+      ["pp_entry"],
+      ["bl_name","bl_addr"],
+      ["bl_index"],
+      ["fe_extract"],
+      ["ma_model"],
+      ["ex_plan"],
+      ["o_match","o_cand"]
+    ],
+    edges:[
+      ["ds_train1","pp_entry","query"],
+      ["ds_train2","bl_index","index"],
+      ["ds_train3","bl_index","index"],
+      ["ds_train1","bl_name","name key"],
+      ["ds_train1","bl_addr","addr keys"],
+      ["bl_name","bl_index","keys"],
+      ["bl_addr","bl_index","keys"],
+      ["bl_index","fe_extract","candidate pairs"],
+      ["fe_extract","ma_model","24-feature vectors"],
+      ["ma_model","ex_plan","score + threshold"],
+      ["ex_plan","o_match","predicted matches"],
+      ["ex_plan","o_cand","candidate set"]
+    ]
+  },
+
+  functions:{
+    title:"Function Pipeline",
+    note:"Every function that exists in src/, and the real call order. Click any node for its contract, invariants and pitfalls.",
+    layers:[
+      ["ma_load"],
+      ["pp_entry"],
+      ["pp_norm_text","pp_country","pp_missing","pp_rec"],
+      ["pp_fold","pp_sep","pp_core","pp_addr","pp_house"],
+      ["bl_cfg","bl_ref"],
+      ["bl_name","bl_addr","bl_keys"],
+      ["bl_index","bl_cand"],
+      ["ma_label"],
+      ["fe_prim","fe_pair"],
+      ["fe_extract"],
+      ["fe_vec"],
+      ["ma_split","ma_thresh"],
+      ["ma_model"]
+    ],
+    edges:[
+      ["ma_load","pp_entry","preprocess_record"],
+      ["pp_entry","pp_norm_text","name / address"],
+      ["pp_entry","pp_country","country"],
+      ["pp_entry","pp_missing","is_missing"],
+      ["pp_norm_text","pp_fold"],
+      ["pp_norm_text","pp_sep"],
+      ["pp_norm_text","pp_core","core_tokens"],
+      ["pp_norm_text","pp_addr"],
+      ["pp_norm_text","pp_house"],
+      ["pp_core","pp_rec"],
+      ["pp_addr","pp_rec"],
+      ["pp_house","pp_rec"],
+      ["pp_rec","bl_name"],
+      ["pp_rec","bl_addr"],
+      ["pp_country","bl_name"],
+      ["pp_house","bl_addr","gates it"],
+      ["bl_cfg","bl_name"],
+      ["bl_cfg","bl_addr"],
+      ["bl_ref","bl_index"],
+      ["bl_name","bl_keys"],
+      ["bl_addr","bl_keys"],
+      ["bl_keys","bl_index"],
+      ["bl_index","bl_cand","candidates_for"],
+      ["bl_cand","ma_label","ground truth"],
+      ["ma_label","fe_vec","labelled pairs"],
+      ["pp_rec","fe_prim"],
+      ["fe_prim","fe_pair"],
+      ["fe_pair","fe_extract"],
+      ["fe_extract","fe_vec"],
+      ["fe_vec","ma_model","X"],
+      ["ma_label","ma_split","y"],
+      ["fe_vec","ma_thresh","scores"],
+      ["ma_split","ma_model"],
+      ["ma_thresh","ma_model"]
+    ]
+  },
+
+  gaps:{
+    title:"Methodology Gaps",
+    note:"What the current code does NOT do, ranked by how much it blocks the final submission. Red = must be fixed before inference.",
+    layers:[
+      ["g_metric","g_agg"],
+      ["g_sub"],
+      ["g_perf"],
+      ["g_france"],
+      ["ex_diag","ex_ab","ex_plan"]
+    ],
+    edges:[
+      ["g_metric","g_agg","macro needs entity view"],
+      ["g_agg","g_sub","decisions → rows"],
+      ["g_perf","g_sub","scale"],
+      ["g_metric","ex_diag","re-score under macro"],
+      ["ex_diag","ex_plan","evidence"],
+      ["ex_ab","ex_diag"],
+      ["g_france","ex_plan","label-free check"]
+    ]
+  },
+
+  data:{
+    title:"Data & Ground Truth",
+    note:"Measured row counts, country distribution and match multiplicity for every file. All figures from a full scan.",
+    layers:[
+      ["ds_train1","ds_train2","ds_train3"],
+      ["ds_gt"],
+      ["ex_ab"]
+    ],
+    edges:[
+      ["ds_train1","ex_ab","2,206,821 entities"],
+      ["ds_train2","ex_ab","5,034,616"],
+      ["ds_train3","ex_ab","5,285,603"],
+      ["ds_gt","ex_ab","7,638,365 true pairs"]
+    ]
+  },
+
+  test:{
+    title:"Test Path",
+    note:"The inference-only side. No test label is ever read; these files are opened once the model is frozen.",
+    layers:[
+      ["ds_test1","ds_test23"],
+      ["g_france"],
+      ["g_perf"],
+      ["g_agg","g_sub"],
+      ["o_cand","o_match","o_val"]
+    ],
+    edges:[
+      ["ds_test1","g_france","259,452 FR"],
+      ["ds_test1","g_perf","1,732,544 queries"],
+      ["ds_test23","g_perf","9,969,589 pool"],
+      ["g_perf","g_agg"],
+      ["g_agg","o_match"],
+      ["g_perf","o_cand"],
+      ["o_match","o_val"],
+      ["o_cand","o_val"]
+    ]
+  },
+
+  run:{
+    title:"Runner Stages",
+    note:"The six checkpoints of run_match_a2_local.py / run_match_a2_kaggle.py, with measured timings and where each one failed.",
+    layers:[
+      ["st1","st2"],
+      ["st3"],
+      ["st4"],
+      ["st5"],
+      ["st6"],
+      ["ex_ab"]
+    ],
+    edges:[
+      ["st1","st2"],
+      ["st2","st3","20,000 S1 + 69,301 pairs"],
+      ["st3","st4","7,580,413 pairs"],
+      ["st4","st5","24 features"],
+      ["st5","st6"],
+      ["st6","ex_ab"]
+    ]
+  },
+
+  env:{
+    title:"Runtime & Constraints",
+    note:"Where work runs, and the competition rules that bound every design choice.",
+    layers:[
+      ["e_local","e_kaggle"],
+      ["ds_test1"],
+      ["g_france","g_metric"],
+      ["o_match","o_cand"]
+    ],
+    edges:[
+      ["e_kaggle","ds_test1","heavy execution"],
+      ["e_local","g_metric","analysis only"],
+      ["ds_test1","g_france"],
+      ["g_metric","o_match","scored by macro F0.5"],
+      ["g_france","o_cand","recall ceiling"]
+    ]
+  }
+};
+
+const STATS = {
+  overview:[["Train S1","2,206,821"],["Test S1","1,732,544"],["Candidate pool","10,320,219"],["True pairs","7,638,365"],["Singletons","123,247 · 5.585%"]],
+  functions:[["Modules","4"],["Preprocessing fns","10"],["Blocking fns","8"],["Feature fns","9"],["Matching fns","12"],["Features","24"]],
+  gaps:[["Blocking recall","79.83%"],["Candidates / S1","318.7"],["Micro F0.5","0.8966"],["Metric correct","NO — micro"],["Full-scale feasible","NO — ~193 h"]],
+  data:[["Train S1","2,206,821"],["Train S2","5,034,616"],["Train S3","5,285,603"],["Test S1","1,732,544"],["Test pool","9,969,589"],["True pairs","7,638,365"]],
+  test:[["Test S1","1,732,544"],["FR S1","259,452"],["FR S2/S3","1,434,993"],["Projected pairs","~657M"],["Hours @ 1,951 r/s","~93"]],
+  run:[["Stage 2","2m30s"],["Stage 3","15m46s"],["Stage 4","1h04m35s"],["Stage 5","36s"],["Stage 6","6s"],["Throughput","1,951 rows/s"]],
+  env:[["Local cores","12 logical"],["Local RAM","15.3 GB"],["Free disk","196.5 GB"],["Kaggle cores","~4"],["Kaggle RAM","~13 GB"],["Python","3.13.14"]]
+};
+
+const LEGEND = [["FILE / DATA",K.data.c],["FUNCTION",K.fn.c],["STAGE",K.stage.c],["DECISION",K.dec.c],["OUTPUT",K.out.c],["KNOWN GAP",K.gap.c],["RUNTIME",K.env.c]];
+
+/* ==========================================================================
+   LAYOUT + RENDER
+   ========================================================================== */
+const NW=186, NH=54, GX=78, GY=26;
+let cur="overview", sel=null, pos={}, g={k:1, x:0, y:0};
+
+function layout(key){
+  const v=VIEWS[key], p={};
+  v.layers.forEach((layer,li)=>{
+    layer.forEach((id,oi)=>{
+      p[id]={x: li*(NW+GX), y: oi*(NH+GY), layer:li};
+    });
+  });
+  pos=p;
+  // vertical centre of each layer
+  const counts=v.layers.map(l=>l.length);
+  const maxRows=Math.max(...counts);
+  v.layers.forEach((layer,li)=>{
+    const h=counts[li]*NH+(counts[li]-1)*GY;
+    const top=(maxRows*NH+(maxRows-1)*GY-h)/2;
+    layer.forEach((id,oi)=>{ p[id].y = top + oi*(NH+GY); });
+  });
+  const w=v.layers.length*(NW+GX)-GX, h=maxRows*NH+(maxRows-1)*GY;
+  return {w,h};
+}
+
+function render(){
+  const vp=document.getElementById("viewport");
+  const {w,h}=layout(cur);
+  const v=VIEWS[cur];
+  let s=`<text class="elabel" x="0" y="-42" style="font-size:13px;fill:#768390">${v.title} — ${v.note}</text>`;
+
+  // edges first (behind nodes)
+  v.edges.forEach(([a,b,lab])=>{
+    if(!pos[a]||!pos[b]) return;
+    const A=pos[a],B=pos[b];
+    const x1=A.x+NW, y1=A.y+NH/2, x2=B.x, y2=B.y+NH/2;
+    const dx=Math.max(40,(x2-x1)/2);
+    s+=`<path class="edge" data-a="${a}" data-b="${b}" d="M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}"/>`;
+    if(lab) s+=`<text class="elabel" x="${(x1+x2)/2}" y="${(y1+y2)/2-6}" text-anchor="middle">${lab}</text>`;
+  });
+
+  v.layers.forEach((layer)=>layer.forEach(id=>{
+    const n=N[id], p=pos[id]; if(!n||!p) return;
+    const col=n.k.c;
+    s+=`<g class="node${sel===id?" sel":""}" data-id="${id}" transform="translate(${p.x},${p.y})">`
+     + `<rect width="${NW}" height="${NH}"/>`;
+    // colour bar
+    s+=`<rect x="0" y="0" width="4" height="${NH}" fill="${col}" rx="2"/>`;
+    s+=`<text class="badge" x="14" y="17" fill="${col}">${n.k.t}</text>`;
+    s+=`<text class="t" x="14" y="33">${esc(n.label)}</text>`;
+    s+=`<text class="s" x="14" y="47">${esc(n.sub)}</text>`;
+    s+=`</g>`;
+  }));
+
+  vp.innerHTML=s;
+  vp.querySelectorAll(".node").forEach(gEl=>{
+    gEl.addEventListener("click",()=>open(gEl.dataset.id));
+  });
+  vp.querySelectorAll(".edge").forEach(pEl=>{
+    pEl.addEventListener("click",()=>{ if(sel) open(sel); });
+  });
+  fit();
+  document.getElementById("stats").innerHTML =
+    "<h4>MEASURED</h4>"+STATS[cur].map(r=>`<div class="row"><b>${r[0]}</b><span>${r[1]}</span></div>`).join("");
+}
+
+function esc(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+/* --- pan / zoom --- */
+const svg=document.getElementById("svg"), vp=document.getElementById("viewport");
+function apply(){ vp.setAttribute("transform",`translate(${g.x},${g.y}) scale(${g.k})`); }
+function fit(){
+  const r=svg.getBoundingClientRect();
+  const {w,h}=layout(cur);
+  const pad=110;
+  g.k=Math.min((r.width-pad*2)/w,(r.height-pad)/h,1.15);
+  g.k=Math.max(g.k,0.18);
+  g.x=(r.width-w*g.k)/2;
+  g.y=(r.height-h*g.k)/2+18;
+  apply();
+}
+let drag=null;
+svg.addEventListener("mousedown",e=>{drag={x:e.clientX,y:e.clientY,ox:g.x,oy:g.y};svg.classList.add("drag");});
+window.addEventListener("mousemove",e=>{
+  if(!drag)return;
+  g.x=drag.ox+(e.clientX-drag.x); g.y=drag.oy+(e.clientY-drag.y); apply();
+});
+window.addEventListener("mouseup",()=>{drag=null;svg.classList.remove("drag");});
+svg.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const r=svg.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const f=e.deltaY<0?1.12:1/1.12;
+  const nk=Math.max(0.15,Math.min(3,g.k*f));
+  g.x=mx-(mx-g.x)*(nk/g.k); g.y=my-(my-g.y)*(nk/g.k); g.k=nk; apply();
+},{passive:false});
+
+/* --- detail panel --- */
+function open(id){
+  const n=N[id]; if(!n)return;
+  sel=id;
+  document.getElementById("panel").classList.add("open");
+  document.getElementById("phead").innerHTML =
+     `<div class="p-kind" style="color:${n.k.c}">${n.k.t}</div>`
+    +`<h2>${n.label}</h2>`
+    +`<div class="path">${n.path||""}</div>`;
+  let b="";
+  (n.d||[]).forEach(p=>b+=`<p>${p}</p>`);
+  if(n.io){
+    b+=`<h3>Interface</h3><div class="io">`
+      +n.io.in.map(x=>`<span class="chip in">${x}</span>`).join("")
+      +n.io.out.map(x=>`<span class="chip out">${x}</span>`).join("")+"</div>";
+  }
+  if(n.kv){
+    b+=`<h3>Parameters &amp; measurements</h3><dl class="kv">`
+      +Object.entries(n.kv).map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join("")+"</dl>";
+  }
+  if(n.code) b+=`<h3>Code</h3><pre>${esc(n.code)}</pre>`;
+  if(n.pit){
+    b+=`<h3>${n.pit.t.startsWith("Known pitfall")?"":"Watch out"}</h3>`
+      +`<div class="pit${n.pit.b==="bad"?" bad":n.pit.b==="ok"?" ok":""}">`
+      +`<b>${n.pit.t}</b><span>${n.pit.s}</span></div>`;
+  }
+  if(n.pit2){
+    b+=`<div class="pit${n.pit2.b==="bad"?" bad":n.pit2.b==="ok"?" ok":""}">`
+      +`<b>${n.pit2.t}</b><span>${n.pit2.s}</span></div>`;
+  }
+  document.getElementById("pbody").innerHTML=b;
+  render();
+}
+function close(){ sel=null; document.getElementById("panel").classList.remove("open"); document.getElementById("pbody").innerHTML=""; render(); }
+
+/* --- nav --- */
+const nav=document.getElementById("nav");
+Object.keys(VIEWS).forEach(k=>{
+  const b=document.createElement("button");
+  b.textContent=VIEWS[k].title;
+  b.onclick=()=>{ cur=k; sel=null; document.getElementById("panel").classList.remove("open"); document.getElementById("pbody").innerHTML="";
+    nav.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); render(); };
+  nav.appendChild(b);
+});
+nav.firstChild.classList.add("on");
+
+document.getElementById("legend").innerHTML =
+  "<div style=\"color:#768390;font-weight:700;letter-spacing:1px;margin-bottom:2px\">LEGEND</div>"
+  +LEGEND.map(([t,c])=>`<div><span class="sw" style="background:${c}"></span>${t}</div>`).join("")
+  +"<div style=\"color:#768390;margin-top:4px;font-size:10px\">click a node for detail</div>";
+
+document.getElementById("zin").onclick=()=>{g.k=Math.min(3,g.k*1.2);apply();};
+document.getElementById("zout").onclick=()=>{g.k=Math.max(0.15,g.k/1.2);apply();};
+document.getElementById("fit").onclick=fit;
+document.getElementById("relayout").onclick=render;
+document.getElementById("close").onclick=close;
+window.addEventListener("resize",fit);
+window.addEventListener("keydown",e=>{ if(e.key==="Escape") close(); });
+
+render();
+</script>
+</body>
+</html>
